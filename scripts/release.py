@@ -48,7 +48,7 @@ def sanity_check():
     if not os.path.exists("setup.py"):
         bail("You must run this script from repo root")
 
-    if not os.getenv("VIRTUAL_ENV"):
+    if not os.getenv("VIRTUAL_ENV") and not os.getenv("CI") == "true":
         bail("Please run from a virtual environment")
 
 
@@ -273,13 +273,13 @@ def main():
             update_version(version)
         if not args.skip_changes:
             insert_changes(version)
+        if not args.skip_api:
+            generate_api_docs()
         _LOGGER.info("Update CHANGES.md and add files to include with git add")
     elif args.make_release:
         _LOGGER.info("Making release %s", version)
         if not args.skip_verify_changes:
             verify_changes(version)
-        if not args.skip_api:
-            generate_api_docs()
         if not args.skip_commit:
             verify_and_create_commit(version)
         if not args.skip_outputs:
