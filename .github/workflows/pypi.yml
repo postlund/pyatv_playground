@@ -1,0 +1,313 @@
+name: Pypi
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+jobs:
+
+  prepare:
+    if: github.actor == 'postlund' && contains(github.event.issue.labels.*.name, 'release') && github.event_name == 'issues' && github.event.action == 'opened'
+    env:
+      job_link: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}?check_suite_focus=true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse Issue
+        id: config
+        env:
+          TITLE: ${{ github.event.issue.title }}
+          BODY: ${{ github.event.issue.body }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          version=$(echo "$TITLE" | sed 's/Release v\(.*\)/\1/g')
+          echo ::set-output name=version::$version
+          echo ::set-output name=branch::"create_pull_request/release_${version//./_}"
+
+          settings_found=0
+          while read -r line;
+          do
+              line=$(echo "$line" | tr -d '\n\r')
+              if [ "$line" = "**Settings**" ]; then
+                  settings_found=1
+              elif [ "$settings_found" = 1 ]; then
+                  key=$(echo "$line" | cut -f 1 -d ':')
+                  value=$(echo "$line" | cut -f 2- -d ':')
+                  if [[ "$key" ]]; then
+                    echo ::set-output name=$key::$value
+                    echo "Setting $key=$value"
+                  fi
+              fi
+          done <<< "$BODY"
+
+      - name: Post Status
+        if: success()
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Preparing release ${{ steps.config.outputs.version }} from ${{ steps.config.outputs.commit }}
+
+            <a href="${{ env.job_link }}">Job log</a>
+
+      - name: Check out Respository
+        if: success()
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.config.outputs.commit }}
+
+      - name: Set up Python 3.8
+        if: success()
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+
+      - name: Prepare Release
+        if: success()
+        env:
+          version: ${{ steps.config.outputs.version }}
+        run: |
+          python -m pip install --upgrade setuptools pip wheel packaging -r requirements_docs.txt
+          python setup.py install
+          ./scripts/release.py --skip-branch -p ${{ steps.config.outputs.version }}
+
+      - name: Create Pull Request
+        if: success()
+        uses: peter-evans/create-pull-request@v2
+        with:
+          commit-message: Release ${{ steps.config.outputs.version }}
+          body: |
+            Release created in #${{ github.event.issue.number }}
+          title: Release ${{ steps.config.outputs.version }}
+          assignees: postlund
+          labels: release
+          branch: ${{ steps.config.outputs.branch }}
+
+      - name: Save PR number
+        if: success()
+        uses: actions/github-script@0.9.0
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const issue = await github.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            })
+
+            await github.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: issue.data.body + "\npr:" + process.env.PULL_REQUEST_NUMBER
+            })
+
+      - name: Success Handler
+        if: success()
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Release successfully prepared!
+
+            1. Update change log [here](https://github.com/${{ github.repository }}/edit/${{ steps.config.outputs.branch }}/CHANGES.md?pr=${{ github.repository }}/${{ env.PULL_REQUEST_NUMBER }})
+            2. Create commit
+            3. Type *build* in a message here
+          reactions: heart
+
+      - name: Error Handler
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            There was an error, please check the log
+
+            <a href="${{ env.job_link }}">Job log</a>
+          reactions: '-1'
+
+  build:
+    if: github.actor == 'postlund' && contains(github.event.issue.labels.*.name, 'release') && github.event_name == 'issue_comment' && github.event.action == 'created' && startsWith(github.event.comment.body, '!') && contains(github.event.comment.body, 'build')
+    env:
+      job_link: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}?check_suite_focus=true
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Parse Issue
+        id: config
+        env:
+          TITLE: ${{ github.event.issue.title }}
+          BODY: ${{ github.event.issue.body }}
+          ISSUE: ${{ toJson(github.event.issue) }}
+        run: |
+          version=$(echo "$TITLE" | sed 's/Release v\(.*\)/\1/g')
+          echo ::set-output name=version::$version
+          echo ::set-output name=branch::"create_pull_request/release_${version//./_}"
+
+          settings_found=0
+          while read -r line;
+          do
+              line=$(echo "$line" | tr -d '\n\r')
+              if [ "$line" = "**Settings**" ]; then
+                  settings_found=1
+              elif [ "$settings_found" = 1 ]; then
+                  key=$(echo "$line" | cut -f 1 -d ':')
+                  value=$(echo "$line" | cut -f 2- -d ':')
+                  if [[ "$key" ]]; then
+                    echo ::set-output name=$key::$value
+                    echo "Setting $key=$value"
+                  fi
+              fi
+          done <<< "$BODY"
+
+      - name: Post Build Start
+        if: success()
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Start build of release ${{ steps.config.outputs.version }} from PR #${{ steps.config.outputs.pr }}
+
+            <a href="${{ env.job_link }}">Job log</a>
+
+      - name: Check out Respository
+        if: success()
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PR
+        if: success()
+        uses: dawidd6/action-checkout-pr@v1
+        with:
+          pr: ${{ steps.config.outputs.pr }}
+ 
+      - name: Set up Python 3.8
+        if: success()
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+
+      - name: Build Release
+        if: success()
+        id: build_release
+        env:
+          version: ${{ steps.config.outputs.version }}
+        run: |
+          # git needs user and email but they are not used due to amend
+          git config --global user.email dummy@dummy.com
+          git config --global user.name dummy
+          git reset --soft $(git log -1 --grep="^Release [0-9]" --pretty="%H") # Changes in PR
+          #git reset --soft HEAD~1 # Release commit
+          git commit --amend --no-edit
+
+          python -m pip install --upgrade setuptools pip wheel packaging -r requirements_docs.txt
+          ./scripts/release.py --skip-commit -m ${{ steps.config.outputs.version }}
+
+          git push --tags -f origin $(git rev-parse --abbrev-ref HEAD)
+
+          cl="$(cat CHANGES.md | sed '1,/## /d' | sed -n '/## /q;p')"
+          cl="${cl//'%'/'%25'}"
+          cl="${cl//$'\n'/'%0A'}"
+          cl="${cl//$'\r'/'%0D'}"
+
+      - name: Update Changelog
+        if: success()
+        uses: actions/github-script@0.9.0
+        env:
+          changelog: ${{ steps.build_release.outputs.changelog }}
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const issue = await github.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            })
+
+            await github.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: issue.data.body.replace("<CHANGELOG_PLACEHOLDER>", process.env.changelog)
+            })
+
+      - name: Upload Release Packages
+        if: success()
+        uses: actions/upload-artifact@v1
+        with:
+          name: dist
+          path: dist
+
+      - name: Success Handler
+        if: success()
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Release successfully built! :tada:
+          reactions: heart
+
+      - name: Error Handler
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            There was an error, please check the log
+
+            <a href="${{ env.job_link }}">Job log</a>
+          reactions: '-1'
+
+  publish:
+    needs: build
+    if: github.actor == 'postlund' && contains(github.event.issue.labels.*.name, 'release') && github.event_name == 'issue_comment' && github.event.action == 'created' && startsWith(github.event.comment.body, '!') && contains(github.event.comment.body, 'publish-test')
+    env:
+      job_link: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}?check_suite_focus=true
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Post Publish Start
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Starting to publish artifacts to pypi
+
+            <a href="${{ env.job_link }}">Job log</a>
+
+      - name: Download Release Artifact
+        if: success()
+        uses: actions/download-artifact@v1
+        with:
+          name: dist
+
+      - name: pypi-publish
+        if: success() && contains(github.event.comment.body, 'publish-test')
+        uses: pypa/gh-action-pypi-publish@v1.1.0
+        with:
+          user: __token__
+          password: ${{ secrets.testpypi_token }}
+          repository_url: https://test.pypi.org/legacy/
+
+      - name: Success Handler
+        if: success()
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Release successfully published! :tada:
+          reactions: heart
+
+      - name: Error Handler
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            There was an error, please check the log
+
+            <a href="${{ env.job_link }}">Job log</a>
+          reactions: '-1'
