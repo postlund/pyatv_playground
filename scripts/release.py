@@ -48,7 +48,7 @@ def sanity_check():
     if not os.path.exists("setup.py"):
         bail("You must run this script from repo root")
 
-    if not os.getenv("VIRTUAL_ENV"):
+    if not os.getenv("VIRTUAL_ENV") and not os.getenv("CI") == "true":
         bail("Please run from a virtual environment")
 
 
