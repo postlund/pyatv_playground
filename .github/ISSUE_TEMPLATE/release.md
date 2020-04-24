@@ -1,12 +1,13 @@
 ---
 name: Release
 about: Create a new release
-title: Release v
+title: Release v0.x.y
 labels: release
 assignees: postlund
 
 ---
-{
-  "commit": "master",
-  "version": ""
-}
+**Changelog**
+<CHANGELOG_PLACEHOLDER>
+
+**Settings**
+commit:master
