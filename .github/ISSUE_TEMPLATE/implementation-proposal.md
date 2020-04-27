@@ -2,7 +2,7 @@
 name: Implementation Proposal
 about: Suggest how a feature should be implemented
 title: ''
-labels: feature
+labels: ''
 assignees: ''
 
 ---
