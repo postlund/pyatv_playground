@@ -1,0 +1,127 @@
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pyatv log</title>
+  <style type="text/css" media="screen">
+    .box_log {
+      margin: 3px;
+      padding: 2px;
+      border-color: #aaaaaa;
+      border-radius: 5px;
+      border-style: dotted;
+      background: #cccccc;
+    }
+    .box_log summary {
+      overflow: scroll;
+      white-space: wrap;
+    }
+    .box_log pre {
+      overflow-x: auto;
+    }
+  </style>
+
+  <script>
+    var content = [["2020-04-22 10:35:00", "DEBUG", " Started atvscript", " Started atvscript\n"], ["2020-04-22 10:35:00", "DEBUG", " Knocking at port 3689 on 10.0.10.81", " Knocking at port 3689 on 10.0.10.81\n"], ["2020-04-22 10:35:00", "DEBUG", " Knocking at port 7000 on 10.0.10.81", " Knocking at port 7000 on 10.0.10.81\n"]];
+    var text_filter = null;
+    var level_checkboxes = [];
+
+    function createEntry(entry) {
+      var outer = document.createElement("div");
+      outer.className = "box_log";
+
+      var details = document.createElement("details");
+      outer.appendChild(details);
+
+      var summary = document.createElement("summary");
+      summary.innerText = entry[0] + " " + entry[2];
+      details.appendChild(summary);
+
+      var desc = document.createElement("pre");
+      details.appendChild(desc);
+
+      details.addEventListener("toggle", event => {
+        if (details.open) {
+          desc.innerText = entry[3];
+
+        }
+      });
+
+      return outer;
+    }
+
+    function populate() {
+      entries = document.getElementById("entries")
+      entries.innerHTML = "";
+
+      active_levels = new Set();
+      for (const checkbox of level_checkboxes) {
+        if (checkbox.checked) {
+          active_levels.add(checkbox.value);
+        }
+      }
+
+      match_regexp = new RegExp(text_filter, "i");
+      for (const entry of content) {
+        if ((text_filter == null || match_regexp.test(entry[3])) &&
+            active_levels.has(entry[1])) {
+          entries.appendChild(createEntry(entry));
+        }
+      }
+    }
+
+    function filterText() {
+      text_filter = document.getElementById("filter").value;
+      populate();
+    }
+
+    function loadData() {
+      var log_levels = new Set();
+
+      for (const entry of content) {
+        log_levels.add(entry[1]);
+      }
+
+      for (const level of log_levels) {
+        var outer = document.createElement("div");
+        outer.style = "display: inline";
+
+        var filter_box = document.createElement("input");
+        filter_box.type = "checkbox";
+        filter_box.value = level;
+        filter_box.id = "LEVEL_" + level;
+        filter_box.value = level;
+        filter_box.checked = true;
+        filter_box.addEventListener('change', (event) => {
+          populate();
+        });
+
+        outer.appendChild(filter_box);
+        level_checkboxes.push(filter_box);
+
+        var label = document.createElement("label");
+        label.innerText = level;
+        label.for = "LEVEL_" + level;
+        outer.appendChild(label);
+
+        document.getElementById("filters").appendChild(outer);
+      }
+
+      populate();
+    }
+
+    var checkExist = setInterval(function() {
+      if (document.getElementById("entries")) {
+        loadData();
+        clearInterval(checkExist);
+      }
+    }, 100);
+  </script>
+
+</head>
+<body>
+  <div id="filters" style="display: inline">
+    <input type="text" id="filter" onkeyup="filterText()"
+           placeholder="Filter regexp..." />
+  </div>
+  <div id="entries" />
+</body>
