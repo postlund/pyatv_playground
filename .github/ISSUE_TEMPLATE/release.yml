@@ -1,0 +1,25 @@
+name: New release
+description: Announcement of a new release
+body:
+  - type: textarea
+    validations:
+      required: true
+    attributes:
+      label: General Release Notes
+      description: >-
+        Summary of the release goes here.
+
+  - type: input
+    id: version
+    validations:
+      required: true
+    attributes:
+      label: Version
+ 
+  - type: textarea
+    validations:
+      required: true
+    attributes:
+      label: Chanelog
+      description: >-
+        All changes included in this release.
