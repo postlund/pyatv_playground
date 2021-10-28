@@ -44,7 +44,7 @@ Colin <12702068+ckeehan@users.noreply.github.com>
 Colin <ckeehan@me.com>
 Erik Hendrix <hendrix_erik@hotmail.com>
 John Lian <jlian@users.noreply.github.com>
-Michael Carroll <mrc@apple.com>
+Michael Carroll <michael@mcarroll.co>
 Pierre Ståhl <pierre.staahl@gmail.com>
 Pierrick Rouxel <pierrick.rouxel@me.com>
 Robbie Trencheny <me@robbiet.us>
